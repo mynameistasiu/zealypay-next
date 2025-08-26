@@ -167,7 +167,7 @@ export default function DashboardPage() {
         type: t.type || "Transaction",
         title: t.type + (t.details ? ` — ${t.details}` : ""),
         amount: t.amount || 0,
-        status: t.status || "Pending",
+        status: t.status || "Successful ✅",
         date: t.date || now()
       }));
       const noteActs = notes.map(n => ({
