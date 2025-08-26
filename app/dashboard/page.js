@@ -1,19 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-/* Config */
+/* ---------- Config & Data ---------- */
+
 const ZEALY_CODE = "ZLP1054XM";
 const CODE_PRICE = 10000;
-const DEFAULT_BONUS = 150000;
-const NIGERIAN_BANKS = [/* ... same bank list ... */ "Access Bank","Zenith Bank","First Bank","GTBank","United Bank for Africa (UBA)","FCMB","Fidelity Bank","Union Bank","Stanbic IBTC","Sterling Bank","Wema Bank","Keystone Bank","Polaris Bank","Jaiz Bank","Unity Bank","SunTrust Bank","Providus Bank","Kuda","Moniepoint MFB","OPay","PalmPay"];
+const DEFAULT_BONUS = 200000;
+const NIGERIAN_BANKS = [
+  "Access Bank","Zenith Bank","First Bank","GTBank","United Bank for Africa (UBA)",
+  "FCMB","Fidelity Bank","Union Bank","Stanbic IBTC","Sterling Bank","Wema Bank",
+  "Keystone Bank","Polaris Bank","Jaiz Bank","Unity Bank","SunTrust Bank",
+  "Providus Bank","Kuda","Moniepoint MFB","OPay","PalmPay"
+];
 const NETWORKS = ["MTN", "AIRTEL", "GLO", "9MOBILE"];
 const DATA_PLANS = [
   { label: "100MB - ₦100", value: 100 },
   { label: "500MB - ₦500", value: 500 },
   { label: "1.5GB - ₦2,000", value: 2000 },
-  { label: "5GB - ₦5,000", value: 5000 },
+  { label: "5GB - ₦5,000", value: 5000 }
 ];
 const PACKS = [
   { key: "Bronze", amount: 5500, eta: "2 working days" },
@@ -21,32 +28,39 @@ const PACKS = [
   { key: "Gold", amount: 10000, eta: "1–2 hours" },
 ];
 
-function uid(prefix = "id") {
-  return `${prefix}-${Date.now()}-${Math.floor(Math.random() * 9000) + 1000}`;
-}
+/* ---------- Helper Utilities ---------- */
+
 function now() {
   return new Date().toLocaleString();
 }
+function uid(prefix = "id") {
+  return `${prefix}-${Date.now()}-${Math.floor(Math.random()*9000)+1000}`;
+}
 
-/* Dashboard page (single file) */
+/* ---------- Component (page) ---------- */
+
 export default function DashboardPage() {
   const router = useRouter();
 
   // auth guard
   const [checkingAuth, setCheckingAuth] = useState(true);
 
-  // user + balance + activities
+  // core data
   const [user, setUser] = useState(null);
   const [balance, setBalance] = useState(DEFAULT_BONUS);
   const [activities, setActivities] = useState([]);
 
-  // UI / modal state
+  // UI
   const [notifOpen, setNotifOpen] = useState(false);
-  const [openPopup, setOpenPopup] = useState(null); // modal name
-  const [loadingAction, setLoadingAction] = useState(false);
-  const [toast, setToast] = useState(null);
+  const [popup, setPopup] = useState(null); // 'withdraw','upgrade','buycode','support','quick-data',...
+  const [codeGateOpen, setCodeGateOpen] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [quickAction, setQuickAction] = useState(null);
 
-  // withdraw form
+  // device
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Withdraw form
   const [wAccountName, setWAccountName] = useState("");
   const [wAccountNumber, setWAccountNumber] = useState("");
   const [wBank, setWBank] = useState(NIGERIAN_BANKS[0]);
@@ -54,19 +68,17 @@ export default function DashboardPage() {
   const [wCode, setWCode] = useState("");
   const [wError, setWError] = useState("");
 
-  // upgrade
+  // Upgrade
   const [selectedPack, setSelectedPack] = useState(null);
 
-  // buy code
+  // Buy code
   const [buyReceiptSent, setBuyReceiptSent] = useState(false);
 
-  // support
+  // Support
   const [supportCategory, setSupportCategory] = useState("General");
   const [supportMessage, setSupportMessage] = useState("");
 
-  // quick flows
-  const [codeGateAction, setCodeGateAction] = useState(null); // <-- key change: dedicated action for code gate
-  const [codeGateInput, setCodeGateInput] = useState("");
+  // Quick services
   const [qNetwork, setQNetwork] = useState(NETWORKS[0]);
   const [qPhone, setQPhone] = useState("");
   const [qPlan, setQPlan] = useState("");
@@ -76,79 +88,119 @@ export default function DashboardPage() {
   const [investmentType, setInvestmentType] = useState("Spend & Save");
   const [investmentAmount, setInvestmentAmount] = useState("");
 
-  // profile
+  // Profile
   const [profileOpen, setProfileOpen] = useState(false);
-  const [profileName, setProfileName] = useState("");
-  const [profilePhone, setProfilePhone] = useState("");
+  const [profileFullName, setProfileFullName] = useState("");
   const [profileEmail, setProfileEmail] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
   const [profileNotif, setProfileNotif] = useState(true);
   const [oldPass, setOldPass] = useState("");
   const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
   const [profileMsg, setProfileMsg] = useState("");
 
-  // ads
+  // Ads carousel
   const [adIndex, setAdIndex] = useState(0);
 
-  /* Load persisted data once */
+  // Loading states for animations
+  const [withdrawLoading, setWithdrawLoading] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [buyLoading, setBuyLoading] = useState(false);
+  const [supportLoading, setSupportLoading] = useState(false);
+  const [quickLoading, setQuickLoading] = useState(false);
+
+  /* ---------- Init / localStorage ---------- */
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    // device detection
+    const checkMobile = () => setIsMobile(window.innerWidth <= 768 || /Mobi|Android/i.test(navigator.userAgent));
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    // cleanup
+    const cleanup = () => window.removeEventListener("resize", checkMobile);
+
+    // auth
     const logged = localStorage.getItem("zealy:isLoggedIn") === "true";
     if (!logged) {
       router.replace("/login");
+      cleanup();
       return;
     }
 
+    // load user
     const rawUser = localStorage.getItem("zealy:user");
     let u = null;
-    try { u = rawUser ? JSON.parse(rawUser) : null; } catch(e){ u = null; }
+    if (rawUser) {
+      try { u = JSON.parse(rawUser); } catch (e) { u = null; }
+    }
     if (!u) {
-      u = { id: uid("user"), fullName: "New User", email: "user@example.com", phone: "", settings: { notifications: true }, password: "password" };
+      u = {
+        id: uid("user"),
+        fullName: "New User",
+        email: "user@example.com",
+        phone: "",
+        created: now(),
+        settings: { notifications: true }
+      };
       localStorage.setItem("zealy:user", JSON.stringify(u));
     }
     setUser(u);
-    setProfileName(u.fullName || "");
+    setProfileFullName(u.fullName || "");
     setProfileEmail(u.email || "");
     setProfilePhone(u.phone || "");
     setProfileNotif(Boolean(u.settings?.notifications));
 
+    // balance
     const bal = Number(localStorage.getItem("zealy:balance") || DEFAULT_BONUS);
     setBalance(isNaN(bal) ? DEFAULT_BONUS : bal);
 
+    // activities
     const savedActs = JSON.parse(localStorage.getItem("zealy:activities") || "null");
-    if (Array.isArray(savedActs)) setActivities(savedActs);
-    else {
+    if (Array.isArray(savedActs)) {
+      setActivities(savedActs);
+    } else {
       const txns = JSON.parse(localStorage.getItem("zealy:transactions") || "[]");
       const notes = JSON.parse(localStorage.getItem("zealy:notifications") || "[]");
-      const txActs = txns.map(t => ({ id: t.id || uid("txn"), type: t.type || "Transaction", title: t.details || t.type, amount: t.amount || 0, status: t.status || "Pending", date: t.date || now() }));
-      const noteActs = notes.map(n => ({ id: uid("note"), type: "Notification", title: n.text || n, amount: null, status: "Info", date: n.date || now() }));
+      const txActs = txns.map(t => ({
+        id: t.id || uid("txn"),
+        type: t.type || "Transaction",
+        title: t.type + (t.details ? ` — ${t.details}` : ""),
+        amount: t.amount || 0,
+        status: t.status || "Pending",
+        date: t.date || now()
+      }));
+      const noteActs = notes.map(n => ({
+        id: uid("note"),
+        type: "Notification",
+        title: n.text || n,
+        amount: null,
+        status: "Info",
+        date: n.date || now()
+      }));
       const merged = [...txActs, ...noteActs].sort((a,b)=> new Date(b.date) - new Date(a.date));
       setActivities(merged);
       localStorage.setItem("zealy:activities", JSON.stringify(merged));
     }
+
     setCheckingAuth(false);
+    return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     localStorage.setItem("zealy:activities", JSON.stringify(activities));
-    const txns = activities.filter(a => ["Withdraw","Buy Zealy Code","Upgrade","Data","Airtime","Pay Bills","Investment"].includes(a.type));
+    const txns = activities.filter(a => ["Withdraw","Upgrade","Buy Zealy Code","Airtime","Data","Pay Bills","Investment"].includes(a.type) || a.type.startsWith("Upgrade "));
     const notes = activities.filter(a => !txns.includes(a)).map(n => ({ date: n.date, text: n.title }));
     localStorage.setItem("zealy:transactions", JSON.stringify(txns.map(t => ({ id: t.id, date: t.date, type: t.type, details: t.title, amount: t.amount, status: t.status }))));
     localStorage.setItem("zealy:notifications", JSON.stringify(notes));
   }, [activities]);
 
-  useEffect(() => localStorage.setItem("zealy:balance", String(balance)), [balance]);
-
   useEffect(() => {
-    const id = setInterval(()=> setAdIndex(i=> (i+1)%4), 4000);
-    return ()=> clearInterval(id);
-  }, []);
+    localStorage.setItem("zealy:balance", String(balance));
+  }, [balance]);
 
-  useEffect(()=> {
-    if (!toast) return;
-    const id = setTimeout(()=> setToast(null), 3000);
-    return ()=> clearTimeout(id);
-  }, [toast]);
+  /* ---------- Helpers ---------- */
 
   function pushActivity(act) {
     const item = { id: act.id || uid("act"), ...act };
@@ -157,546 +209,852 @@ export default function DashboardPage() {
 
   function doLogout() {
     localStorage.setItem("zealy:isLoggedIn", "false");
-    router.replace("/");
+    router.replace("/login");
   }
 
-  /* OPEN/START functions */
+  /* ---------- Withdraw (now marks successful) ---------- */
+
   function openWithdraw() {
-    setWAccountName(""); setWAccountNumber(""); setWBank(NIGERIAN_BANKS[0]); setWAmount(""); setWCode(""); setWError("");
-    setOpenPopup("withdraw");
-  }
-  function openUpgrade() { setSelectedPack(null); setOpenPopup("upgrade"); }
-  function openBuyCode() { setBuyReceiptSent(false); setOpenPopup("buycode"); }
-  function openSupport() { setSupportCategory("General"); setSupportMessage(""); setOpenPopup("support"); }
-  function openProfile() {
-    const u = JSON.parse(localStorage.getItem("zealy:user") || "null") || {};
-    setProfileName(u.fullName || "");
-    setProfileEmail(u.email || "");
-    setProfilePhone(u.phone || "");
-    setProfileNotif(Boolean(u.settings?.notifications));
-    setProfileOpen(true);
-  }
-
-  /* Start quick: sets dedicated codeGateAction then opens gate modal */
-  function startQuick(name) {
-    setCodeGateAction(name); // store the action for gate submit
-    setCodeGateInput("");
-    setOpenPopup("codegate");
-  }
-
-  /* --- handlers --- */
-  async function submitWithdraw(e) {
-    e && e.preventDefault && e.preventDefault();
+    setWAccountName("");
+    setWAccountNumber("");
+    setWBank(NIGERIAN_BANKS[0]);
+    setWAmount("");
+    setWCode("");
     setWError("");
-    if (!wAccountName || !wAccountNumber || !wBank || !wAmount) { setWError("Please fill all required fields."); return; }
-    if (!wCode || wCode.trim().toUpperCase() !== ZEALY_CODE) { setWError("Invalid Zealy Code."); return; }
-    const amt = Number(wAmount);
-    if (!amt || amt <=0) { setWError("Enter a valid amount."); return; }
-    if (amt > balance) { setWError("Insufficient balance."); return; }
-
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    const act = { id: uid("txn"), type: "Withdraw", title: `${wBank} • ${wAccountName} (${wAccountNumber})`, amount: amt, status: "Successful ✅", date: now() };
-    pushActivity(act);
-    setBalance(b => Math.max(0, b - amt));
-    pushActivity({ id: uid("note"), type: "Notification", title: `💸 Withdrawal ₦${amt.toLocaleString()} successful.`, date: now(), status: "Info" });
-    setLoadingAction(false);
-    setOpenPopup(null);
-    setToast({ text: "Withdrawal successful", type: "success" });
+    setPopup("withdraw");
   }
 
-  async function confirmUpgrade() {
-    if (!selectedPack) { setToast({ text: "Please select a package", type: "warn" }); return; }
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    const act = { id: uid("txn"), type: "Upgrade", title: `${selectedPack.key} — pay ₦${selectedPack.amount.toLocaleString()}`, amount: selectedPack.amount, status: "Pending ⏳", date: now() };
-    pushActivity(act);
-    pushActivity({ id: uid("note"), type: "Notification", title: `⬆️ Upgrade requested: ${selectedPack.key} (Pending)`, date: now(), status: "Info" });
-    localStorage.setItem("zealy:upgradePending", JSON.stringify({ pack:selectedPack.key, amount: selectedPack.amount, date: now() }));
-    setLoadingAction(false);
-    setOpenPopup(null);
-    setSelectedPack(null);
-    setToast({ text: "Upgrade requested", type: "info" });
-  }
-
-  async function confirmBuyCode() {
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    const act = { id: uid("txn"), type: "Buy Zealy Code", title: `Purchased code ${ZEALY_CODE}`, amount: CODE_PRICE, status: "Successful ✅", date: now() };
-    pushActivity(act);
-    pushActivity({ id: uid("note"), type: "Notification", title: `🧾 Zealy Code purchase marked Successful.`, date: now(), status: "Info" });
-    setLoadingAction(false);
-    setOpenPopup(null);
-    setToast({ text: "Zealy Code purchased", type: "success" });
-  }
-
-  async function submitSupport(e) {
-    e && e.preventDefault && e.preventDefault();
-    if (!supportMessage) { setToast({ text: "Write a message first", type: "warn" }); return; }
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    const tickets = JSON.parse(localStorage.getItem("zealy:support") || "[]");
-    tickets.unshift({ id: uid("ticket"), date: now(), category: supportCategory, message: supportMessage, reply: null });
-    localStorage.setItem("zealy:support", JSON.stringify(tickets));
-    pushActivity({ id: uid("note"), type: "Notification", title: `📩 Support message sent (${supportCategory}).`, date: now(), status: "Info" });
-    setLoadingAction(false);
-    setOpenPopup(null);
-    setToast({ text: "Support message sent", type: "success" });
-  }
-
-  /* Code gate submit reads codeGateAction (robust) */
-  function submitCodeGate(e) {
-    e && e.preventDefault && e.preventDefault();
-    if (codeGateInput.trim().toUpperCase() !== ZEALY_CODE) {
-      setToast({ text: "Invalid Zealy Code", type: "error" });
+  async function submitWithdraw(e) {
+    e.preventDefault();
+    setWError("");
+    if (!wAccountName || !wAccountNumber || !wBank || !wAmount || !wCode) {
+      setWError("Please fill all fields (including Zealy Code).");
       return;
     }
-    // map
+    if (wCode.trim().toUpperCase() !== ZEALY_CODE) {
+      setWError("Invalid Zealy Code.");
+      return;
+    }
+    const amt = Number(wAmount);
+    if (!amt || amt <= 0) { setWError("Enter a valid amount."); return; }
+    if (amt > balance) { setWError("Insufficient balance."); return; }
+
+    // animation: set loading
+    setWithdrawLoading(true);
+
+    // simulate small processing delay for better UX
+    setTimeout(() => {
+      // mark successful (per your request)
+      const act = {
+        id: uid("txn"),
+        type: "Withdraw",
+        title: `${wBank} • ${wAccountName} (${wAccountNumber})`,
+        amount: amt,
+        status: "Successful ✅",
+        date: now()
+      };
+      pushActivity(act);
+      setBalance(prev => Math.max(0, prev - amt));
+      pushActivity({ id: uid("note"), type: "Notification", title: `✅ Withdrawal ₦${amt.toLocaleString()} successful.`, date: now(), amount: null, status: "Info" });
+      setWithdrawLoading(false);
+      setPopup(null);
+    }, 700);
+  }
+
+  /* ---------- Upgrade ---------- */
+
+  function openUpgrade() {
+    setSelectedPack(null);
+    setPopup("upgrade");
+  }
+  function selectUpgrade(pack) {
+    setSelectedPack(pack);
+  }
+  function confirmUpgrade() {
+    if (!selectedPack) return;
+    setUpgradeLoading(true);
+    setTimeout(() => {
+      const act = {
+        id: uid("txn"),
+        type: "Upgrade",
+        title: `${selectedPack.key} — pay ₦${selectedPack.amount.toLocaleString()}`,
+        amount: selectedPack.amount,
+        status: "Pending ⏳",
+        date: now()
+      };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `⬆️ Upgrade requested: ${selectedPack.key} (Pending)`, amount: null, status: "Info", date: now() });
+      setUpgradeLoading(false);
+      setPopup(null);
+      setSelectedPack(null);
+    }, 800);
+  }
+
+  /* ---------- Buy Zealy Code ---------- */
+
+  function openBuyCode() {
+    setBuyReceiptSent(false);
+    setPopup("buycode");
+  }
+  function confirmBuyCode() {
+    setBuyLoading(true);
+    setTimeout(() => {
+      const act = {
+        id: uid("txn"),
+        type: "Buy Zealy Code",
+        title: `Purchased code ${ZEALY_CODE}`,
+        amount: CODE_PRICE,
+        status: "Successful ✅",
+        date: now()
+      };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `🧾 Zealy Code purchase marked Successful.`, amount: null, status: "Info", date: now() });
+      setBuyLoading(false);
+      setPopup(null);
+      setBuyReceiptSent(false);
+    }, 800);
+  }
+
+  /* ---------- Support ---------- */
+
+  function openSupport() {
+    setSupportCategory("General");
+    setSupportMessage("");
+    setPopup("support");
+  }
+  function submitSupport(e) {
+    e.preventDefault();
+    if (!supportMessage) return;
+    setSupportLoading(true);
+    setTimeout(() => {
+      const tickets = JSON.parse(localStorage.getItem("zealy:support") || "[]");
+      const ticket = { id: uid("ticket"), date: now(), category: supportCategory, message: supportMessage, reply: null };
+      tickets.unshift(ticket);
+      localStorage.setItem("zealy:support", JSON.stringify(tickets));
+      pushActivity({ id: uid("note"), type: "Notification", title: `📩 Support message sent (${supportCategory}).`, date: now(), amount: null, status: "Info" });
+      setSupportMessage("");
+      setSupportLoading(false);
+      setPopup(null);
+    }, 700);
+  }
+
+  /* ---------- Quick Access gating & services ---------- */
+
+  function requestQuickAccess(name) {
+    setQuickAction(name);
+    setCodeInput("");
+    setCodeGateOpen(true);
+    // ensure modal wrapper shows even if popup is null (we render when either is true)
+  }
+
+  function submitCodeGate(e) {
+    e.preventDefault();
+    if (codeInput.trim().toUpperCase() !== ZEALY_CODE) {
+      alert("Invalid Zealy Code.");
+      return;
+    }
+    // open corresponding quick modal
     const mapping = { "Data": "quick-data", "Airtime": "quick-airtime", "Pay Bills": "quick-bills", "Investment": "quick-invest" };
-    setOpenPopup(mapping[codeGateAction] || null);
-    setCodeGateAction(null);
-    setCodeGateInput("");
+    setCodeGateOpen(false);
+    setPopup(mapping[quickAction] || null);
+    setQuickAction(null);
   }
 
-  async function submitData(e) {
-    e && e.preventDefault && e.preventDefault();
-    if (!qPhone || !qPlan) { setToast({ text: "Enter phone and plan", type: "warn" }); return; }
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    const plan = DATA_PLANS.find(p => String(p.value) === String(qPlan));
-    const amount = plan ? plan.value : Number(qAmount || 0);
-    pushActivity({ id: uid("txn"), type: "Data", title: `${qNetwork} - ${plan.label} to ${qPhone}`, amount, status: "Successful ✅", date: now() });
-    pushActivity({ id: uid("note"), type: "Notification", title: `✅ ${qNetwork} ${plan.label} purchased for ${qPhone}.`, date: now(), status: "Info" });
-    setLoadingAction(false);
-    setOpenPopup(null);
-    setToast({ text: "Data purchased", type: "success" });
+  // Data
+  function submitData(e) {
+    e.preventDefault();
+    if (!qPhone || !qPlan) { alert("Enter phone and plan."); return; }
+    setQuickLoading(true);
+    setTimeout(() => {
+      const plan = DATA_PLANS.find(p => p.value === Number(qPlan));
+      const act = { id: uid("txn"), type: "Data", title: `${qNetwork} - ${plan.label} to ${qPhone}`, amount: plan.value, status: "Successful", date: now() };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `✅ ${qNetwork} ${plan.label} purchased for ${qPhone}.`, amount: null, status: "Info", date: now() });
+      setQuickLoading(false);
+      setPopup(null);
+    }, 700);
   }
 
-  async function submitAirtime(e) {
-    e && e.preventDefault && e.preventDefault();
+  // Airtime
+  function submitAirtime(e) {
+    e.preventDefault();
     const amt = Number(qAmount);
-    if (!qPhone || !qAmount || amt <= 0) { setToast({ text: "Enter phone and valid amount", type: "warn" }); return; }
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    pushActivity({ id: uid("txn"), type: "Airtime", title: `${qNetwork} airtime to ${qPhone}`, amount: amt, status: "Successful ✅", date: now() });
-    pushActivity({ id: uid("note"), type: "Notification", title: `✅ Airtime ₦${amt} sent to ${qPhone}.`, date: now(), status: "Info" });
-    setLoadingAction(false); setOpenPopup(null); setToast({ text: "Airtime sent", type: "success" });
+    if (!qPhone || !qAmount || amt <= 0) { alert("Enter phone and valid amount."); return; }
+    setQuickLoading(true);
+    setTimeout(() => {
+      const act = { id: uid("txn"), type: "Airtime", title: `${qNetwork} airtime to ${qPhone}`, amount: amt, status: "Successful", date: now() };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `✅ Airtime ₦${amt} sent to ${qPhone}.`, amount: null, status: "Info", date: now() });
+      setQuickLoading(false);
+      setPopup(null);
+    }, 600);
   }
 
-  async function submitBill(e) {
-    e && e.preventDefault && e.preventDefault();
+  // Pay Bills
+  function submitBill(e) {
+    e.preventDefault();
     const amt = Number(qAmount);
-    if (!qBillAccount || !qAmount || amt <= 0) { setToast({ text: "Enter account/ref and valid amount", type: "warn" }); return; }
-    setLoadingAction(true);
-    await new Promise(r=> setTimeout(r, 700));
-    pushActivity({ id: uid("txn"), type: "Pay Bills", title: `${qBillType} • ${qBillAccount}`, amount: amt, status: "Successful ✅", date: now() });
-    pushActivity({ id: uid("note"), type: "Notification", title: `✅ ${qBillType} payment ₦${amt} for ${qBillAccount}.`, date: now(), status: "Info" });
-    setLoadingAction(false); setOpenPopup(null); setToast({ text: "Bill paid", type: "success" });
+    if (!qBillAccount || !qAmount || amt <= 0) { alert("Enter account/ref and valid amount."); return; }
+    setQuickLoading(true);
+    setTimeout(() => {
+      const act = { id: uid("txn"), type: "Pay Bills", title: `${qBillType} • ${qBillAccount}`, amount: amt, status: "Successful", date: now() };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `✅ ${qBillType} payment ₦${amt} for ${qBillAccount}.`, amount: null, status: "Info", date: now() });
+      setQuickLoading(false);
+      setPopup(null);
+    }, 700);
   }
 
-  async function submitInvestment(e) {
-    e && e.preventDefault && e.preventDefault();
+  // Investment
+  function submitInvestment(e) {
+    e.preventDefault();
     const amt = Number(investmentAmount);
-    if (!amt || amt <= 0) { setToast({ text: "Enter valid amount", type: "warn" }); return; }
-    setLoadingAction(true); await new Promise(r=> setTimeout(r, 700));
-    pushActivity({ id: uid("txn"), type: "Investment", title: `${investmentType} — start ₦${amt.toLocaleString()}`, amount: amt, status: "Pending", date: now() });
-    pushActivity({ id: uid("note"), type: "Notification", title: `💼 Investment request: ${investmentType} ₦${amt.toLocaleString()} (Pending).`, date: now(), status: "Info" });
-    setLoadingAction(false); setOpenPopup(null); setToast({ text: "Investment requested", type: "info" });
+    if (!amt || amt <= 0) { alert("Enter valid amount."); return; }
+    setQuickLoading(true);
+    setTimeout(() => {
+      const act = { id: uid("txn"), type: "Investment", title: `${investmentType} — start ₦${amt.toLocaleString()}`, amount: amt, status: "Pending", date: now() };
+      pushActivity(act);
+      pushActivity({ id: uid("note"), type: "Notification", title: `💼 Investment request: ${investmentType} ₦${amt.toLocaleString()} (Pending).`, amount: null, status: "Info", date: now() });
+      setQuickLoading(false);
+      setPopup(null);
+    }, 800);
   }
 
-  /* Profile handlers (email readonly per request) */
-  function openProfileModal() {
-    const u = JSON.parse(localStorage.getItem("zealy:user") || "null") || {};
-    setProfileName(u.fullName || "");
-    setProfilePhone(u.phone || "");
-    setProfileEmail(u.email || "");
-    setProfileNotif(Boolean(u.settings?.notifications));
-    setProfileOpen(true);
+  /* ---------- Profile ---------- */
+
+  function openProfile() {
+    const u = JSON.parse(localStorage.getItem("zealy:user") || "null");
+    if (u) {
+      setProfileFullName(u.fullName || "");
+      setProfileEmail(u.email || "");
+      setProfilePhone(u.phone || "");
+      setProfileNotif(Boolean(u.settings?.notifications));
+    }
     setProfileMsg("");
+    setProfileOpen(true);
   }
+
   function saveProfile(e) {
     e && e.preventDefault && e.preventDefault();
-    if (!profileName || !profileEmail) { setProfileMsg("Name and email required"); return; }
+    if (!profileFullName || !profileEmail) {
+      setProfileMsg("Please provide name and email.");
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(profileEmail)) {
+      setProfileMsg("Enter a valid email address.");
+      return;
+    }
+    // NOTE: per your request email is NOT editable - but we still validate it's present.
+    // we WILL NOT change the stored email even if profileEmail has changed in UI (read-only ensures it doesn't).
     const u = JSON.parse(localStorage.getItem("zealy:user") || "null") || {};
-    u.fullName = profileName; u.phone = profilePhone; u.email = profileEmail;
-    u.settings = u.settings || {}; u.settings.notifications = !!profileNotif;
+    u.fullName = profileFullName;
+    // do not overwrite u.email (email is not editable)
+    u.phone = profilePhone;
+    u.settings = u.settings || {};
+    u.settings.notifications = !!profileNotif;
     localStorage.setItem("zealy:user", JSON.stringify(u));
-    setUser(u); setProfileMsg("Saved"); setTimeout(()=> { setProfileOpen(false); setProfileMsg(""); }, 700);
-  }
-  function changePassword(e) {
-    e && e.preventDefault && e.preventDefault();
-    if (!oldPass || !newPass || !confirmPass) { setProfileMsg("Fill password fields"); return; }
-    if (newPass !== confirmPass) { setProfileMsg("New passwords do not match"); return; }
-    const u = JSON.parse(localStorage.getItem("zealy:user") || "null") || {};
-    if (u.password && oldPass !== u.password) { setProfileMsg("Old password incorrect"); return; }
-    u.password = newPass; localStorage.setItem("zealy:user", JSON.stringify(u)); setProfileMsg("Password changed (demo)"); setOldPass(""); setNewPass(""); setConfirmPass("");
-    setTimeout(()=> setProfileMsg(""), 1000);
+    setUser(u);
+    setProfileMsg("Profile saved.");
+    setTimeout(() => { setProfileOpen(false); setProfileMsg(""); }, 800);
   }
 
+  function changePassword(e) {
+    e.preventDefault();
+    if (!newPass || !confirmPass) { setProfileMsg("Enter new password and confirm."); return; }
+    if (newPass !== confirmPass) { setProfileMsg("New passwords do not match."); return; }
+    setProfileMsg("Password changed (demo).");
+    setOldPass(""); setNewPass(""); setConfirmPass("");
+    setTimeout(()=> setProfileMsg(""), 1200);
+  }
+
+  /* ---------- Ads carousel ---------- */
+  useEffect(() => {
+    const id = setInterval(() => setAdIndex(i => (i+1)%4), 4000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* ---------- Render ---------- */
   if (checkingAuth) return null;
 
-  /* ---------- UI components used inline ---------- */
-  const Spinner = () => (
-    <svg width="18" height="18" viewBox="0 0 50 50" style={{ verticalAlign: "middle" }}>
-      <circle cx="25" cy="25" r="20" fill="none" stroke="#ffffff" strokeWidth="4" strokeOpacity="0.2"></circle>
-      <path d="M45 25a20 20 0 0 1-20 20" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite" />
-      </path>
-    </svg>
-  );
-
   return (
-    <main style={{ minHeight: "100vh", background: "linear-gradient(180deg,#0f172a 0%, #0ea5e9 55%, #7c3aed 100%)", color: "#fff", padding: 20 }}>
-      <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-        {/* header */}
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+    <main style={{ minHeight: "100vh", background: "linear-gradient(180deg,#0f172a 0%, #0ea5e9 55%, #7c3aed 100%)" }} className="text-white p-6">
+      <div className="container mx-auto max-w-6xl">
+        {/* Top header */}
+        <header className="flex items-center justify-between mb-6" style={{ gap: 12 }}>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 20, color: "#c7f9cc" }}>ZealyPay</div>
-            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)" }}>Secure wallet • ₦{Number(balance).toLocaleString()} balance</div>
+            <h1 style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700 }}>
+              <span style={{ color: "#c7f9cc" }}>Zealy</span> Pay
+            </h1>
+            <div style={{ fontSize: isMobile ? 11 : 13, color: "rgba(255,255,255,0.85)" }}>
+              Secure wallet · ₦{balance.toLocaleString()} balance
+            </div>
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button onClick={() => setNotifOpen(s => !s)} style={{ padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.06)" }}>🔔</button>
-            <button onClick={openProfileModal} style={{ padding: 8, borderRadius: 8, background: "linear-gradient(90deg,#6366f1,#06b6d4)" }}>Profile</button>
-            <button onClick={doLogout} style={{ padding: 8, borderRadius: 8, background: "#ef4444" }}>Logout</button>
+
+          <div className="flex items-center gap-3">
+            <button onClick={() => setNotifOpen(s=>!s)} className="btn-ghost" style={{ padding: 8, borderRadius: 8, background: "rgba(255,255,255,0.06)" }}>
+              🔔
+            </button>
+            <button onClick={openProfile} className="btn-ghost" style={{ padding: 8, borderRadius: 8, background: "linear-gradient(90deg,#6366f1,#7c3aed)" }}>
+              Profile
+            </button>
+            <button onClick={doLogout} className="btn-ghost" style={{ padding: 8, borderRadius: 8, background: "#ef4444" }}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {/* Kinetic banner */}
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ background: "rgba(255,255,255,0.06)", borderRadius: 12, padding: 12, overflow: "hidden" }}>
+            <div style={{ fontWeight: 700, fontSize: isMobile ? 13 : 16 }}>
+              Special: Buy the Zealy Code and stand a chance to win ₦200,000!
+            </div>
+            <div style={{ fontSize: isMobile ? 11 : 13, color: "rgba(255,255,255,0.85)" }}>
+              Limited promo — buy a code and follow the steps in support to enter.
+            </div>
           </div>
         </div>
 
-        {/* notifications */}
-        {notifOpen && (
-          <div style={{ position: "absolute", right: 24, top: 80, background: "#fff", color: "#0f172a", padding: 12, borderRadius: 10, width: 340 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Recent Activities</div>
-            <div style={{ maxHeight: 300, overflow: "auto" }}>
-              {activities.length === 0 ? <div style={{ color: "#6b7280" }}>No activity yet</div> : activities.slice(0, 30).map(a => (
-                <div key={a.id} style={{ borderBottom: "1px solid rgba(17,24,39,0.04)", padding: "8px 0" }}>
-                  <div style={{ fontWeight: 600 }}>{a.title || a.type}</div>
-                  <div style={{ fontSize: 12, color: "#6b7280" }}>{a.date}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* main grid */}
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {/* wallet card */}
-            <div style={{ padding: 16, borderRadius: 12, background: "linear-gradient(90deg,#042f4a,#0b3048)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
+        {/* Grid */}
+        <div className="grid" style={{
+          gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+          gap: 16
+        }}>
+          <div style={{ gridColumn: isMobile ? "auto" : "1 / span 2", display: "grid", gap: 16 }}>
+            {/* Wallet card */}
+            <div style={{ borderRadius: 16, padding: 14, background: "linear-gradient(90deg,#042f4a,#0b3048)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div>
-                  <div style={{ fontSize: 14 }}>Hi, <b>{user?.fullName || "User"}</b> 👋</div>
-                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>Welcome to your Zealy Wallet</div>
+                  <div style={{ fontSize: 14, opacity: 0.95 }}>
+                    Hi, <span style={{ fontWeight: 700 }}>{user?.fullName || "User"}</span> 👋
+                  </div>
+                  <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
+                    Welcome to your Zealy Wallet — secure and fast
+                  </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 12, opacity: 0.9 }}>Current Balance</div>
-                  <div style={{ fontSize: 28, fontWeight: 800 }}>₦{Number(balance).toLocaleString()}</div>
+                  <div style={{ fontSize: 12, opacity: 0.85 }}>Current Balance</div>
+                  <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 800 }}>₦{Number(balance).toLocaleString()}</div>
                 </div>
               </div>
-              <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10 }}>
-                <button onClick={openWithdraw} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#06b6d4,#06b6a4)", fontWeight: 700 }}>Withdraw</button>
-                <button onClick={openUpgrade} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#f59e0b,#f97316)", fontWeight: 700 }}>Upgrade</button>
-                <button onClick={openBuyCode} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#3b82f6,#06b6d4)", fontWeight: 700 }}>Buy Zealy Code</button>
-                <button onClick={openSupport} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#ef4444,#ec4899)", fontWeight: 700 }}>Support</button>
+
+              {/* actions */}
+              <div style={{
+                marginTop: 12,
+                display: "grid",
+                gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)",
+                gap: 10
+              }}>
+                <button onClick={openWithdraw} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#06b6d4,#06b6a4)", fontWeight:700 }}>
+                  Withdraw
+                </button>
+                <button onClick={openUpgrade} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#f59e0b,#f97316)", fontWeight:700 }}>
+                  Upgrade
+                </button>
+                <button onClick={openBuyCode} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#3b82f6,#06b6d4)", fontWeight:700 }}>
+                  Buy Zealy Code
+                </button>
+                <button onClick={openSupport} style={{ padding: 12, borderRadius: 10, background: "linear-gradient(90deg,#ef4444,#ec4899)", fontWeight:700 }}>
+                  Support
+                </button>
               </div>
             </div>
 
-            {/* quick access */}
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Quick Access */}
+            <div style={{ borderRadius: 14, background: "rgba(255,255,255,0.04)", padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ fontWeight: 700 }}>Quick Access</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)" }}>Enter Zealy Code</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>Enter Zealy Code to unlock</div>
               </div>
-              <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 8 }}>
-                <button onClick={() => startQuick("Data")} style={{ padding: 10, borderRadius: 8, background: "#0ea5e9" }}>📶 Data</button>
-                <button onClick={() => startQuick("Airtime")} style={{ padding: 10, borderRadius: 8, background: "#06b6d4" }}>📱 Airtime</button>
-                <button onClick={() => startQuick("Pay Bills")} style={{ padding: 10, borderRadius: 8, background: "#7c3aed" }}>🧾 Pay Bills</button>
-                <button onClick={() => startQuick("Investment")} style={{ padding: 10, borderRadius: 8, background: "#06b6a4" }}>💼 Investment</button>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)",
+                gap: 10
+              }}>
+                <button onClick={() => requestQuickAccess("Data")} style={{ padding: 10, borderRadius: 10, background: "#0ea5e9", color: "#001" }}>📶 Data</button>
+                <button onClick={() => requestQuickAccess("Airtime")} style={{ padding: 10, borderRadius: 10, background: "#06b6d4" }}>📱 Airtime</button>
+                <button onClick={() => requestQuickAccess("Pay Bills")} style={{ padding: 10, borderRadius: 10, background: "#7c3aed" }}>🧾 Pay Bills</button>
+                <button onClick={() => requestQuickAccess("Investment")} style={{ padding: 10, borderRadius: 10, background: "#06b6a4" }}>💼 Investment</button>
               </div>
-              <div style={{ marginTop: 8, fontSize: 12 }}>Enter code <b>{ZEALY_CODE}</b> to unlock these services.</div>
+              <div style={{ marginTop: 8, fontSize: 12 }}>Enter code to unlock these services.</div>
             </div>
 
-            {/* activities */}
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            {/* Activities */}
+            <div style={{ borderRadius: 12, background: "rgba(255,255,255,0.04)", padding: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <div style={{ fontWeight: 700 }}>Recent Activities</div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>{activities.length} items</div>
+                <div style={{ fontSize: 12, opacity: 0.8 }}>{activities.length} items</div>
               </div>
-              <div style={{ marginTop: 10, maxHeight: 320, overflow: "auto" }}>
-                {activities.length === 0 ? <div style={{ color: "rgba(255,255,255,0.7)" }}>No activities yet</div> : activities.map(a => (
-                  <div key={a.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.02)" }}>
+              <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 6 }}>
+                {activities.length === 0 && <div style={{ color: "rgba(255,255,255,0.7)" }}>No activities yet</div>}
+                {activities.map(a => (
+                  <div key={a.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, padding: "10px 6px", borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                     <div>
                       <div style={{ fontWeight: 600 }}>{a.type} {a.title ? "— " + a.title : ""}</div>
                       <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{a.date}</div>
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      {a.amount ? <div style={{ fontWeight: 800 }}>₦{Number(a.amount).toLocaleString()}</div> : null}
-                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>{a.status}</div>
+                      {a.amount ? <div style={{ fontWeight: 700 }}>₦{Number(a.amount).toLocaleString()}</div> : <div style={{ fontSize: 12 }}>{a.status}</div>}
+                      <div style={{ fontSize: 12, color: "rgba(255,255,255,0.6)" }}>{a.status}</div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* ads */}
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ fontWeight: 700 }}>How to earn ₦200k</div>
-              <div style={{ marginTop: 10, height: 90, borderRadius: 8, background: "linear-gradient(90deg,#0ea5e9,#7c3aed)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                {adIndex === 0 && <div style={{ textAlign: "center", color: "#fff" }}><b>Step 1</b><div>Buy a Zealy Code & send receipt</div></div>}
-                {adIndex === 1 && <div style={{ textAlign: "center", color: "#fff" }}><b>Step 2</b><div>Complete dashboard tasks</div></div>}
-                {adIndex === 2 && <div style={{ textAlign: "center", color: "#fff" }}><b>Step 3</b><div>Refer friends for entries</div></div>}
-                {adIndex === 3 && <div style={{ textAlign: "center", color: "#fff" }}><b>Step 4</b><div>Winners chosen monthly</div></div>}
+            {/* Ads carousel */}
+            <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 700 }}>How to earn ₦200k</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>{adIndex+1}/4</div>
+              </div>
+              <div style={{ marginTop: 10, height: 90, display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(90deg,#0ea5e9,#7c3aed)", borderRadius: 8 }}>
+                <div style={{ color: "white", textAlign: "center", width: "100%" }}>
+                  {adIndex === 0 && <div><div style={{fontWeight:700}}>Step 1</div><div style={{fontSize:13}}>Buy a Zealy Code and send receipt</div></div>}
+                  {adIndex === 1 && <div><div style={{fontWeight:700}}>Step 2</div><div style={{fontSize:13}}>Complete dashboard tasks to qualify</div></div>}
+                  {adIndex === 2 && <div><div style={{fontWeight:700}}>Step 3</div><div style={{fontSize:13}}>Get referrals for bonus entries</div></div>}
+                  {adIndex === 3 && <div><div style={{fontWeight:700}}>Step 4</div><div style={{fontSize:13}}>Winners chosen monthly</div></div>}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* sidebar */}
-          <aside style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
+          {/* Right column */}
+          <aside style={{ gridColumn: isMobile ? "auto" : "3 / span 1", display: "grid", gap: 12 }}>
+            <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)" }}>
               <div style={{ fontWeight: 700 }}>Account</div>
-              <div style={{ marginTop: 8 }}>{user?.fullName}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{user?.email}</div>
-              <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>{user?.phone || "—"}</div>
-              <div style={{ marginTop: 8 }}><button onClick={openProfileModal} style={{ padding: 8, borderRadius: 8, background: "#7c3aed" }}>Edit Profile</button></div>
+              <div style={{ marginTop: 8 }}>
+                <div style={{ fontSize: 13 }}>{user?.fullName}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{user?.email}</div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>{user?.phone}</div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <button onClick={openProfile} style={{ padding: 8, borderRadius: 8, background: "#7c3aed" }}>Edit Profile</button>
+              </div>
             </div>
 
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
-              <div style={{ fontWeight: 700 }}>Quick actions</div>
-              <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+            <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)" }}>
+              <div style={{ fontWeight: 700 }}>Quick Actions</div>
+              <div style={{ marginTop: 8, display: "grid", gap: 8 }}>
                 <button onClick={openWithdraw} style={{ padding: 8, borderRadius: 8, background: "#06b6d4" }}>Withdraw</button>
                 <button onClick={openUpgrade} style={{ padding: 8, borderRadius: 8, background: "#f59e0b" }}>Upgrade</button>
                 <button onClick={openBuyCode} style={{ padding: 8, borderRadius: 8, background: "#3b82f6" }}>Buy Zealy Code</button>
               </div>
             </div>
 
-            <div style={{ padding: 12, borderRadius: 10, background: "rgba(255,255,255,0.03)" }}>
+            <div style={{ borderRadius: 12, padding: 12, background: "rgba(255,255,255,0.03)" }}>
               <div style={{ fontWeight: 700 }}>Support</div>
-              <div style={{ marginTop: 8 }}>Need help? Chat on WhatsApp or open Support.</div>
-              <div style={{ marginTop: 10 }}><a style={{ padding: 8, borderRadius: 8, background: "#10b981", color: "#fff", display: "inline-block", textDecoration: "none" }} href="https://wa.me/2348161662371" target="_blank" rel="noreferrer">WhatsApp Support</a></div>
+              <div style={{ marginTop: 8, fontSize: 13 }}>Need help? Chat on WhatsApp or open Support.</div>
+              <div style={{ marginTop: 10 }}>
+                <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: 8, borderRadius: 8, background: "#10b981" }}>WhatsApp Support</a>
+              </div>
             </div>
           </aside>
         </div>
       </div>
 
-      {/* Overlay (closes on click) */}
-      {(openPopup || profileOpen) && <div onClick={() => { setOpenPopup(null); setProfileOpen(false); setCodeGateAction(null); }} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(2,6,23,0.6)" }} />}
-
-      {/* ---------- modals ---------- */}
-
-      {/* withdraw */}
-      {openPopup === "withdraw" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Withdraw Funds</h3><button onClick={() => setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <p style={{ color: "#6b7280" }}>Fill your bank details and enter Zealy Code to confirm withdrawal.</p>
-          <form onSubmit={submitWithdraw} style={{ display: "grid", gap: 10, gridTemplateColumns: "1fr 1fr" }}>
-            <label>Account Name<input className="input" value={wAccountName} onChange={(e)=>setWAccountName(e.target.value)} /></label>
-            <label>Account Number<input className="input" value={wAccountNumber} onChange={(e)=>setWAccountNumber(e.target.value)} /></label>
-            <label>Bank<select className="input" value={wBank} onChange={(e)=>setWBank(e.target.value)}>{NIGERIAN_BANKS.map(b=> <option key={b}>{b}</option>)}</select></label>
-            <label>Amount (₦)<input className="input" type="number" value={wAmount} onChange={(e)=>setWAmount(e.target.value)} /></label>
-            <label style={{ gridColumn: "1 / -1" }}>Enter Zealy Code<input className="input" value={wCode} onChange={(e)=>setWCode(e.target.value)} placeholder="" /></label>
-            {wError && <div style={{ color: "#dc2626" }}>{wError}</div>}
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", gridColumn: "1 / -1" }}>
-              <button type="button" onClick={() => setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner /> : "Submit Withdrawal"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* upgrade */}
-      {openPopup === "upgrade" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Upgrade Account</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <p style={{ color: "#6b7280" }}>Choose a package and follow payment instructions. Selected upgrades appear as pending.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
-            {PACKS.map(p => (
-              <div key={p.key} style={{ background: "#fff", color: "#0f172a", padding: 12, borderRadius: 8, border: selectedPack?.key===p.key ? "2px solid #6366f1" : "1px solid #e6e6e6" }}>
-                <div style={{ fontWeight: 700 }}>{p.key}</div>
-                <div style={{ color: "#6b7280", marginTop:6 }}>₦{p.amount.toLocaleString()}</div>
-                <div style={{ fontSize:12, color:"#6b7280" }}>{p.eta}</div>
-                <div style={{ marginTop:8 }}><button onClick={() => setSelectedPack(p)} style={{ padding:8, borderRadius:8, background:"#6366f1", color:"#fff" }}>Select</button></div>
+      {/* ---------- Floating notifications dropdown ---------- */}
+      {notifOpen && (
+        <div style={{ position: "fixed", right: 20, top: 90, background: "white", color: "#111827", borderRadius: 12, padding: 12, width: 320, boxShadow: "0 8px 30px rgba(2,6,23,0.5)" }}>
+          <div style={{ fontWeight: 700, marginBottom: 8 }}>Recent Activities</div>
+          <div style={{ maxHeight: 300, overflowY: "auto" }}>
+            {activities.length === 0 ? <div style={{ color: "#6b7280" }}>No activity yet.</div> : activities.slice(0,20).map(a => (
+              <div key={a.id} style={{ borderBottom: "1px solid rgba(17,24,39,0.05)", padding: "8px 0" }}>
+                <div style={{ fontWeight: 600 }}>{a.title || a.type}</div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>{a.date}</div>
               </div>
             ))}
           </div>
-          {selectedPack && <div style={{ marginTop:12, padding: 12, borderRadius:8, background: "#fff7ed" }}>
-            <div>Send <b>₦{selectedPack.amount.toLocaleString()}</b> to:</div>
-            <div style={{ marginTop:6 }}>Bank: <b>Moniepoint</b><br/>Account Name: <b>Sadiq Mamuda</b><br/>Account Number: <b>5073816968</b></div>
-            <div style={{ marginTop:8, display:"flex", gap:8 }}>
-              <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" onClick={()=>setBuyReceiptSent(true)} style={{ padding:8, borderRadius:8, background:"#10b981", color:"#fff", textDecoration:"none" }}>📲 Send Receipt on WhatsApp</a>
-              <button onClick={confirmUpgrade} style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "I have sent money for upgrade"}</button>
-              <button onClick={()=>{ setSelectedPack(null); setOpenPopup(null); }} style={ghostBtn}>Cancel</button>
-            </div>
-          </div>}
         </div>
       )}
 
-      {/* buycode */}
-      {openPopup === "buycode" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Buy Zealy Code</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <p style={{ color:"#6b7280" }}>Purchase the code. After payment, send receipt via WhatsApp before confirming.</p>
-          <div style={{ padding:10, background:"#f1f5f9", borderRadius:8 }}>
-            <div>Bank: <b>Moniepoint</b></div>
-            <div>Account Name: <b>Sadiq Mamuda</b></div>
-            <div>Account Number: <b>5073816968</b></div>
-            <div style={{ marginTop:6, fontWeight:700 }}>Amount: ₦{CODE_PRICE.toLocaleString()}</div>
+      {/* ---------- Modal wrapper: render when either popup or codeGateOpen is true ---------- */}
+      {(popup || codeGateOpen) && (
+        <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60 }}>
+          {/* overlay click closes all modal states */}
+          <div
+            onClick={() => { setPopup(null); setCodeGateOpen(false); setQuickAction(null); }}
+            style={{ position: "absolute", inset: 0, background: "rgba(2,6,23,0.6)" }}
+          />
+          <div style={{ width: "min(920px,95%)", maxHeight: "90vh", overflowY: "auto", borderRadius: 12, padding: 18, background: "#fff", color: "#0f172a", zIndex: 70 }}>
+            {/* Withdraw */}
+            {popup === "withdraw" && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <h3 style={{ margin: 0 }}>Withdraw Funds</h3>
+                  <button onClick={() => setPopup(null)} style={{ background: "transparent", border: "none", fontSize: 18 }}>✖</button>
+                </div>
+                <p style={{ color: "#6b7280" }}>Fill your bank details and enter Zealy Code to confirm withdrawal.</p>
+                <form onSubmit={submitWithdraw}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    <div>
+                      <label className="block text-sm">Account Name</label>
+                      <input className="input" value={wAccountName} onChange={(e)=>setWAccountName(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-sm">Account Number</label>
+                      <input className="input" value={wAccountNumber} onChange={(e)=>setWAccountNumber(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-sm">Bank</label>
+                      <select className="input" value={wBank} onChange={(e)=>setWBank(e.target.value)}>
+                        {NIGERIAN_BANKS.map(b => <option key={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm">Amount (₦)</label>
+                      <input className="input" type="number" value={wAmount} onChange={(e)=>setWAmount(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 10 }}>
+                    <label className="block text-sm">Enter Zealy Code</label>
+                    <input className="input" value={wCode} onChange={(e)=>setWCode(e.target.value)} placeholder="" />
+                    <div style={{ color: "#dc2626", marginTop: 6 }}>{wError}</div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                    <button type="button" onClick={() => setPopup(null)} style={{ padding: "8px 12px", borderRadius: 8, background: "#e6e6e6" }}>Cancel</button>
+                    <button type="submit" style={{ padding: "8px 12px", borderRadius: 8, background: "#06b6d4", color: "#fff", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      {withdrawLoading ? <span className="spinner" /> : null}
+                      Submit Withdrawal
+                    </button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Upgrade */}
+            {popup === "upgrade" && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin: 0 }}>Upgrade Account</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background: "transparent", border: "none", fontSize: 18 }}>✖</button>
+                </div>
+                <p style={{ color: "#6b7280" }}>Choose a package and follow payment instructions. Selected upgrades appear as pending.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+                  {PACKS.map(p => (
+                    <div key={p.key} style={{ borderRadius: 8, padding: 12, background: "#f8fafc", border: selectedPack?.key===p.key ? "2px solid #6366f1" : "1px solid #e6e6e6" }}>
+                      <div style={{ fontWeight: 700 }}>{p.key}</div>
+                      <div style={{ color: "#6b7280", marginTop: 6 }}>₦{p.amount.toLocaleString()}</div>
+                      <div style={{ fontSize: 12, color: "#6b7280" }}>{p.eta}</div>
+                      <div style={{ marginTop: 8 }}>
+                        <button onClick={()=>selectUpgrade(p)} style={{ padding: 8, borderRadius: 8, background: "#6366f1", color: "#fff" }}>Select</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {selectedPack && (
+                  <div style={{ marginTop: 12, padding: 12, background: "#fff7ed", borderRadius: 8 }}>
+                    <div>Send <b>₦{selectedPack.amount.toLocaleString()}</b> to:</div>
+                    <div style={{ marginTop: 6 }}>
+                      Bank: <b>Moniepoint</b><br />
+                      Account Name: <b>Sadiq Mamuda</b><br />
+                      Account Number: <b>5073816968</b>
+                    </div>
+                    <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                      <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
+                      <button onClick={confirmUpgrade} style={{ padding: 8, background: "#f59e0b", color: "#fff", borderRadius: 8 }}>
+                        {upgradeLoading ? <span className="spinner" /> : null} I have sent money for upgrade
+                      </button>
+                      <button onClick={()=>{ setSelectedPack(null); setPopup(null); }} style={{ padding: 8, background: "#e6e6e6", borderRadius: 8 }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* Buy Zealy Code */}
+            {popup === "buycode" && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin:0 }}>Buy Zealy Code</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background: "transparent", border: "none", fontSize: 18 }}>✖</button>
+                </div>
+                <p style={{ color: "#6b7280" }}>Purchase the single Zealy Code. After payment, send receipt via WhatsApp before confirming.</p>
+                <div style={{ padding: 10, background: "#f1f5f9", borderRadius: 8 }}>
+                  <div>Bank: <b>Moniepoint</b></div>
+                  <div>Account Name: <b>Sadiq Mamuda</b></div>
+                  <div>Account Number: <b>5073816968</b></div>
+                  <div style={{ marginTop: 6, fontWeight: 700 }}>Amount: ₦{CODE_PRICE.toLocaleString()}</div>
+                </div>
+                <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                  <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" onClick={() => setBuyReceiptSent(true)} style={{ padding: 10, background: "#16a34a", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
+                  <button onClick={() => { if (!buyReceiptSent) { if (!confirm("You haven't told us you sent a receipt. Continue anyway?")) return; } confirmBuyCode(); }} style={{ padding: 10, background: "#0ea5e9", color: "#fff", borderRadius: 8 }}>
+                    {buyLoading ? <span className="spinner" /> : null} I have made payment
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Support */}
+            {popup === "support" && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin:0 }}>Contact Support</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background: "transparent", border: "none", fontSize: 18 }}>✖</button>
+                </div>
+                <form onSubmit={submitSupport} style={{ marginTop: 8 }}>
+                  <div>
+                    <label className="block text-sm">Category</label>
+                    <select className="input" value={supportCategory} onChange={(e)=>setSupportCategory(e.target.value)}>
+                      <option>Complaint</option>
+                      <option>Payment Issue</option>
+                      <option>Upgrade Problem</option>
+                      <option>General</option>
+                    </select>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <label className="block text-sm">Message</label>
+                    <textarea className="input" rows={4} value={supportMessage} onChange={(e)=>setSupportMessage(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
+                    <button type="submit" style={{ padding: 8, background: "#6366f1", color: "#fff", borderRadius: 8 }}>
+                      {supportLoading ? <span className="spinner" /> : null} Send
+                    </button>
+                    <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>Chat on WhatsApp</a>
+                    <button type="button" onClick={() => setPopup(null)} style={{ padding: 8, background: "#e6e6e6", borderRadius: 8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Code gate */}
+            {codeGateOpen && (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <h3 style={{ margin:0 }}>Enter Zealy Code</h3>
+                  <button onClick={()=>{ setCodeGateOpen(false); setQuickAction(null); setPopup(null); }} style={{ background: "transparent", border: "none", fontSize: 18 }}>✖</button>
+                </div>
+                <form onSubmit={submitCodeGate} style={{ marginTop: 10 }}>
+                  <input className="input" placeholder="Enter Zealy Code" value={codeInput} onChange={(e)=>setCodeInput(e.target.value)} />
+                  <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                    <button type="submit" style={{ padding: 8, background: "#3b82f6", color:"#fff", borderRadius: 8 }}>Unlock</button>
+                    <button type="button" onClick={()=>{ setCodeGateOpen(false); setQuickAction(null); }} style={{ padding: 8, background: "#e6e6e6", borderRadius: 8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Quick-data */}
+            {popup === "quick-data" && (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <h3 style={{ margin:0 }}>Buy Data</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background:"transparent", border:"none" }}>✖</button>
+                </div>
+                <form onSubmit={submitData} style={{ marginTop:10 }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                    <div>
+                      <label className="block text-sm">Network</label>
+                      <select className="input" value={qNetwork} onChange={(e)=>setQNetwork(e.target.value)}>{NETWORKS.map(n=> <option key={n}>{n}</option>)}</select>
+                    </div>
+                    <div>
+                      <label className="block text-sm">Phone Number</label>
+                      <input className="input" value={qPhone} onChange={(e)=>setQPhone(e.target.value)} />
+                    </div>
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Plan</label>
+                    <select className="input" value={qPlan||""} onChange={(e)=>setQPlan(e.target.value)}>
+                      <option value="">Select plan</option>
+                      {DATA_PLANS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                    <button type="submit" style={{ padding:8, background:"#06b6d4", color:"#fff", borderRadius:8 }}>
+                      {quickLoading ? <span className="spinner" /> : null} Buy Data
+                    </button>
+                    <button type="button" onClick={()=>setPopup(null)} style={{ padding:8, background:"#e6e6e6", borderRadius:8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Quick-airtime */}
+            {popup === "quick-airtime" && (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <h3 style={{ margin:0 }}>Buy Airtime</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background:"transparent", border:"none" }}>✖</button>
+                </div>
+                <form onSubmit={submitAirtime} style={{ marginTop:10 }}>
+                  <div>
+                    <label className="block text-sm">Network</label>
+                    <select className="input" value={qNetwork} onChange={(e)=>setQNetwork(e.target.value)}>{NETWORKS.map(n=> <option key={n}>{n}</option>)}</select>
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Phone Number</label>
+                    <input className="input" value={qPhone} onChange={(e)=>setQPhone(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Amount (₦)</label>
+                    <input className="input" type="number" value={qAmount} onChange={(e)=>setQAmount(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                    <button type="submit" style={{ padding:8, background:"#06b6d4", color:"#fff", borderRadius:8 }}>
+                      {quickLoading ? <span className="spinner" /> : null} Send Airtime
+                    </button>
+                    <button type="button" onClick={()=>setPopup(null)} style={{ padding:8, background:"#e6e6e6", borderRadius:8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Quick-bills */}
+            {popup === "quick-bills" && (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <h3 style={{ margin:0 }}>Pay Bills</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background:"transparent", border:"none" }}>✖</button>
+                </div>
+                <form onSubmit={submitBill} style={{ marginTop:10 }}>
+                  <div>
+                    <label className="block text-sm">Bill Type</label>
+                    <select className="input" value={qBillType} onChange={(e)=>setQBillType(e.target.value)}>
+                      <option>Electricity</option>
+                      <option>Water</option>
+                      <option>School Fee</option>
+                      <option>Internet</option>
+                    </select>
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Account / Reference</label>
+                    <input className="input" value={qBillAccount} onChange={(e)=>setQBillAccount(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Amount (₦)</label>
+                    <input className="input" type="number" value={qAmount} onChange={(e)=>setQAmount(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                    <button type="submit" style={{ padding:8, background:"#7c3aed", color:"#fff", borderRadius:8 }}>
+                      {quickLoading ? <span className="spinner" /> : null} Pay Bill
+                    </button>
+                    <button type="button" onClick={()=>setPopup(null)} style={{ padding:8, background:"#e6e6e6", borderRadius:8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
+
+            {/* Quick-invest */}
+            {popup === "quick-invest" && (
+              <>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <h3 style={{ margin:0 }}>Invest</h3>
+                  <button onClick={()=>setPopup(null)} style={{ background:"transparent", border:"none" }}>✖</button>
+                </div>
+                <form onSubmit={submitInvestment} style={{ marginTop:10 }}>
+                  <div>
+                    <label className="block text-sm">Product</label>
+                    <select className="input" value={investmentType} onChange={(e)=>setInvestmentType(e.target.value)}>
+                      <option>Spend & Save</option>
+                      <option>Fixed Account</option>
+                      <option>Target Savings</option>
+                    </select>
+                  </div>
+                  <div style={{ marginTop:8 }}>
+                    <label className="block text-sm">Amount (₦)</label>
+                    <input className="input" type="number" value={investmentAmount} onChange={(e)=>setInvestmentAmount(e.target.value)} />
+                  </div>
+                  <div style={{ marginTop:10, display:"flex", gap:8 }}>
+                    <button type="submit" style={{ padding:8, background:"#06b6d4", color:"#fff", borderRadius:8 }}>
+                      {quickLoading ? <span className="spinner" /> : null} Start Investment
+                    </button>
+                    <button type="button" onClick={()=>setPopup(null)} style={{ padding:8, background:"#e6e6e6", borderRadius:8 }}>Cancel</button>
+                  </div>
+                </form>
+              </>
+            )}
           </div>
-          <div style={{ marginTop:10, display:"flex", gap:8 }}>
-            <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" onClick={()=>setBuyReceiptSent(true)} style={{ padding:10, borderRadius:8, background:"#16a34a", color:"#fff", textDecoration:"none" }}>📲 Send Receipt on WhatsApp</a>
-            <button onClick={confirmBuyCode} style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "I have made payment"}</button>
-            <button onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-          </div>
         </div>
       )}
 
-      {/* support */}
-      {openPopup === "support" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Contact Support</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitSupport} style={{ display:"grid", gap:8 }}>
-            <label>Category<select className="input" value={supportCategory} onChange={(e)=>setSupportCategory(e.target.value)}><option>Complaint</option><option>Payment Issue</option><option>Upgrade Problem</option><option>General</option></select></label>
-            <label>Message<textarea className="input" rows={4} value={supportMessage} onChange={(e)=>setSupportMessage(e.target.value)} /></label>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "Send"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* code gate */}
-      {openPopup === "codegate" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Enter Zealy Code</h3><button onClick={()=>{ setOpenPopup(null); setCodeGateAction(null); }} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitCodeGate} style={{ display:"grid", gap:10 }}>
-            <input className="input" placeholder="Enter Zealy Code" value={codeGateInput} onChange={(e)=>setCodeGateInput(e.target.value)} />
-            <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-              <button type="button" onClick={()=>{ setOpenPopup(null); setCodeGateAction(null); }} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn}>Unlock</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* quick-data */}
-      {openPopup === "quick-data" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Buy Data</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitData} style={{ display:"grid", gap:8 }}>
-            <label>Network<select className="input" value={qNetwork} onChange={(e)=>setQNetwork(e.target.value)}>{NETWORKS.map(n=> <option key={n}>{n}</option>)}</select></label>
-            <label>Phone Number<input className="input" value={qPhone} onChange={(e)=>setQPhone(e.target.value)} /></label>
-            <label>Plan<select className="input" value={qPlan} onChange={(e)=>setQPlan(e.target.value)}><option value="">Select plan</option>{DATA_PLANS.map(p=> <option key={p.value} value={p.value}>{p.label}</option>)}</select></label>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "Buy Data"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* quick-airtime */}
-      {openPopup === "quick-airtime" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Buy Airtime</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitAirtime} style={{ display:"grid", gap:8 }}>
-            <label>Network<select className="input" value={qNetwork} onChange={(e)=>setQNetwork(e.target.value)}>{NETWORKS.map(n=> <option key={n}>{n}</option>)}</select></label>
-            <label>Phone Number<input className="input" value={qPhone} onChange={(e)=>setQPhone(e.target.value)} /></label>
-            <label>Amount<input className="input" type="number" value={qAmount} onChange={(e)=>setQAmount(e.target.value)} /></label>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "Send Airtime"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* quick-bills */}
-      {openPopup === "quick-bills" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Pay Bills</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitBill} style={{ display:"grid", gap:8 }}>
-            <label>Bill Type<select className="input" value={qBillType} onChange={(e)=>setQBillType(e.target.value)}><option>Electricity</option><option>Water</option><option>School Fee</option><option>Internet</option></select></label>
-            <label>Account / Reference<input className="input" value={qBillAccount} onChange={(e)=>setQBillAccount(e.target.value)} /></label>
-            <label>Amount<input className="input" type="number" value={qAmount} onChange={(e)=>setQAmount(e.target.value)} /></label>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "Pay Bill"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* quick-invest */}
-      {openPopup === "quick-invest" && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Invest</h3><button onClick={()=>setOpenPopup(null)} style={closeBtn}>✖</button></div>
-          <form onSubmit={submitInvestment} style={{ display:"grid", gap:8 }}>
-            <label>Product<select className="input" value={investmentType} onChange={(e)=>setInvestmentType(e.target.value)}><option>Spend & Save</option><option>Fixed Account</option><option>Target Savings</option></select></label>
-            <label>Amount<input className="input" type="number" value={investmentAmount} onChange={(e)=>setInvestmentAmount(e.target.value)} /></label>
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setOpenPopup(null)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn} disabled={loadingAction}>{loadingAction ? <Spinner/> : "Start Investment"}</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* profile modal */}
+      {/* Profile modal */}
       {profileOpen && (
-        <div style={modalStyle}>
-          <div style={modalHeader}><h3 style={{ margin:0 }}>Profile</h3><button onClick={()=>setProfileOpen(false)} style={closeBtn}>✖</button></div>
-          <form onSubmit={saveProfile} style={{ display:"grid", gap:8 }}>
-            <label>Full name<input className="input" value={profileName} onChange={(e)=>setProfileName(e.target.value)} /></label>
-            <label>Phone<input className="input" value={profilePhone} onChange={(e)=>setProfilePhone(e.target.value)} /></label>
-            <label>Email (read-only)<input className="input" value={profileEmail} readOnly /><div style={{ color:"#6b7280", fontSize:12 }}>Email is read-only here. Contact support to change it.</div></label>
-            <div style={{ marginTop:8 }}>
-              <div style={{ fontWeight:700 }}>Change password</div>
-              <input className="input" type="password" placeholder="Old password" value={oldPass} onChange={(e)=>setOldPass(e.target.value)} />
-              <input className="input" type="password" placeholder="New password" value={newPass} onChange={(e)=>setNewPass(e.target.value)} />
-              <input className="input" type="password" placeholder="Confirm new password" value={confirmPass} onChange={(e)=>setConfirmPass(e.target.value)} />
-              <button type="button" onClick={changePassword} style={{ marginTop:8, padding:8, borderRadius:8, background:"#06b6d4", color:"#fff" }}>Change password</button>
+        <div style={{ position: "fixed", inset:0, display:"flex", alignItems:"center", justifyContent:"center", zIndex:80 }}>
+          <div onClick={()=>setProfileOpen(false)} style={{ position:"absolute", inset:0, background:"rgba(2,6,23,0.6)" }} />
+          <div style={{ width: "min(600px,95%)", borderRadius:12, background:"#fff", color:"#0f172a", padding:18, zIndex:90 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <h3 style={{ margin:0 }}>Profile</h3>
+              <button onClick={()=>setProfileOpen(false)} style={{ background:"transparent", border:"none", fontSize:18 }}>✖</button>
             </div>
 
-            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-              <input id="notif" type="checkbox" checked={profileNotif} onChange={(e)=>setProfileNotif(e.target.checked)} />
-              <label htmlFor="notif">Enable notifications</label>
-            </div>
-            {profileMsg && <div style={{ color:"#065f46", fontWeight:700 }}>{profileMsg}</div>}
-            <div style={{ display:"flex", justifyContent:"flex-end", gap:8 }}>
-              <button type="button" onClick={()=>setProfileOpen(false)} style={ghostBtn}>Cancel</button>
-              <button type="submit" style={primaryBtn}>Save</button>
-            </div>
-          </form>
+            <form onSubmit={saveProfile} style={{ marginTop:12 }}>
+              <div style={{ display:"grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div>
+                  <label className="block text-sm">Full name</label>
+                  <input className="input" value={profileFullName} onChange={(e)=>setProfileFullName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm">Phone</label>
+                  <input className="input" value={profilePhone} onChange={(e)=>setProfilePhone(e.target.value)} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label className="block text-sm">Email (not editable)</label>
+                  <input className="input" value={profileEmail} readOnly disabled />
+                  <div style={{ fontSize:12, color: "#6b7280" }}>Email cannot be changed from here.</div>
+                </div>
+              </div>
+
+              <div style={{ marginTop:12 }}>
+                <div style={{ fontWeight:700 }}>Change password</div>
+                <div style={{ display:"grid", gap:8, marginTop:8 }}>
+                  <input type="password" className="input" placeholder="Old password" value={oldPass} onChange={(e)=>setOldPass(e.target.value)} />
+                  <input type="password" className="input" placeholder="New password" value={newPass} onChange={(e)=>setNewPass(e.target.value)} />
+                  <input type="password" className="input" placeholder="Confirm new password" value={confirmPass} onChange={(e)=>setConfirmPass(e.target.value)} />
+                  <button onClick={changePassword} type="button" style={{ padding:8, background:"#06b6d4", color:"#fff", borderRadius:8 }}>Change password</button>
+                </div>
+              </div>
+
+              <div style={{ marginTop:12, display:"flex", alignItems:"center", gap:8 }}>
+                <input id="notifToggle" type="checkbox" checked={profileNotif} onChange={(e)=>setProfileNotif(e.target.checked)} />
+                <label htmlFor="notifToggle">Enable notifications</label>
+              </div>
+
+              <div style={{ marginTop:12, display:"flex", gap:8 }}>
+                <button type="submit" style={{ padding:8, background:"#6366f1", color:"#fff", borderRadius:8 }}>Save</button>
+                <button type="button" onClick={()=>setProfileOpen(false)} style={{ padding:8, background:"#e6e6e6", borderRadius:8 }}>Cancel</button>
+                <div style={{ marginLeft: "auto", color: "#065f46", fontWeight:700 }}>{profileMsg}</div>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
-      {/* toast */}
-      {toast && <div style={{ position:"fixed", left:"50%", transform:"translateX(-50%)", bottom:28, background: toast.type==="success" ? "linear-gradient(90deg,#10b981,#059669)" : toast.type==="error" ? "linear-gradient(90deg,#ef4444,#f97316)" : "linear-gradient(90deg,#3b82f6,#06b6d4)", padding:"10px 14px", borderRadius:8 }}>{toast.text}</div>}
-
-      {/* small styles used inline components */}
+      {/* Styles: input, spinner, responsive tweaks */}
       <style jsx>{`
-        .input { width:100%; padding:8px 10px; border-radius:8px; border:1px solid rgba(2,6,23,0.08); box-sizing:border-box; }
+        .input {
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 8px;
+          border: 1px solid rgba(2,6,23,0.08);
+          box-sizing: border-box;
+        }
+        button { cursor: pointer; }
+        .spinner {
+          width: 16px;
+          height: 16px;
+          border: 2px solid rgba(255,255,255,0.2);
+          border-top-color: rgba(255,255,255,0.9);
+          border-radius: 50%;
+          display: inline-block;
+          animation: spin 1s linear infinite;
+        }
+        /* dark spinner variant for white buttons */
+        .spinner-dark {
+          border: 2px solid rgba(15,23,42,0.15);
+          border-top-color: rgba(15,23,42,0.9);
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        /* small mobile layout adjustments if user wants extra polish */
+        @media (max-width: 768px) {
+          .container { padding-left: 8px; padding-right: 8px; }
+        }
       `}</style>
     </main>
-  );
-}
-
-/* Shared inline style helpers */
-const modalStyle = {
-  position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 100,
-  width: "min(920px, 95%)", maxHeight: "92vh", overflowY: "auto", background: "#fff", color: "#0f172a", padding: 18, borderRadius: 12, boxShadow: "0 18px 60px rgba(2,6,23,0.6)"
-};
-const modalHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 };
-const closeBtn = { background: "transparent", border: "none", fontSize: 18, cursor: "pointer" };
-const primaryBtn = { padding: "8px 12px", borderRadius: 8, background: "linear-gradient(90deg,#06b6d4,#3b82f6)", color: "#001", border: "none", cursor: "pointer" };
-const ghostBtn = { padding: "8px 12px", borderRadius: 8, background: "#e6e6e6", border: "none", cursor: "pointer" };
-
-/* Inline spinner used above (SVG) */
-function Spinner() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 50 50" style={{ display: "inline-block", verticalAlign: "middle" }}>
-      <circle cx="25" cy="25" r="20" fill="none" stroke="#111827" strokeWidth="4" strokeOpacity="0.2"></circle>
-      <path d="M45 25a20 20 0 0 1-20 20" fill="none" stroke="#fff" strokeWidth="4" strokeLinecap="round">
-        <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
-      </path>
-    </svg>
   );
 }
