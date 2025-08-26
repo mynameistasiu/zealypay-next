@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">zealy-pay</string>
+    <string name="title_activity_main">zealy-pay</string>
+    <string name="package_name">com.yourdomain.zealypay</string>
+    <string name="custom_url_scheme">com.yourdomain.zealypay</string>
+</resources>

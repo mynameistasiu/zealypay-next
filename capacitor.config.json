@@ -1,0 +1,6 @@
+{
+  "appId": "com.yourdomain.zealypay",
+  "appName": "zealy-pay",
+  "webDir": "out",
+  "bundledWebRuntime": false
+}

@@ -302,7 +302,7 @@ export default function DashboardPage() {
       const act = {
         id: uid("txn"),
         type: "Buy Zealy Code",
-        title: `Purchased code ${ZEALY_CODE}`,
+        title: `Purchased code`,
         amount: CODE_PRICE,
         status: "Successful ✅",
         date: now()
