@@ -646,7 +646,7 @@ export default function DashboardPage() {
               <div style={{ fontWeight: 700 }}>Support</div>
               <div style={{ marginTop: 8, fontSize: 13 }}>Need help? Chat on WhatsApp or open Support.</div>
               <div style={{ marginTop: 10 }}>
-                <a href="https://wa.me/2348136361997" target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: 8, borderRadius: 8, background: "#10b981" }}>WhatsApp Support</a>
+                <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: 8, borderRadius: 8, background: "#10b981" }}>WhatsApp Support</a>
               </div>
             </div>
           </aside>
@@ -754,7 +754,7 @@ export default function DashboardPage() {
                       Account Number: <b>2078928132</b>
                     </div>
                     <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
-                      <a href="https://wa.me/2348136361997" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
+                      <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
                       <button onClick={confirmUpgrade} style={{ padding: 8, background: "#f59e0b", color: "#fff", borderRadius: 8 }}>
                         {upgradeLoading ? <span className="spinner" /> : null} I have sent money for upgrade
                       </button>
@@ -780,7 +780,7 @@ export default function DashboardPage() {
                   <div style={{ marginTop: 6, fontWeight: 700 }}>Amount: ₦{CODE_PRICE.toLocaleString()}</div>
                 </div>
                 <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
-                  <a href="https://wa.me/2348136361997" target="_blank" rel="noreferrer" onClick={() => setBuyReceiptSent(true)} style={{ padding: 10, background: "#16a34a", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
+                  <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" onClick={() => setBuyReceiptSent(true)} style={{ padding: 10, background: "#16a34a", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
                   <button onClick={() => { if (!buyReceiptSent) { if (!confirm("You haven't told us you sent a receipt. Continue anyway?")) return; } confirmBuyCode(); }} style={{ padding: 10, background: "#0ea5e9", color: "#fff", borderRadius: 8 }}>
                     {buyLoading ? <span className="spinner" /> : null} I have made payment
                   </button>
@@ -813,7 +813,7 @@ export default function DashboardPage() {
                     <button type="submit" style={{ padding: 8, background: "#6366f1", color: "#fff", borderRadius: 8 }}>
                       {supportLoading ? <span className="spinner" /> : null} Send
                     </button>
-                    <a href="https://wa.me/2348136361997" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>Chat on WhatsApp</a>
+                    <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>Chat on WhatsApp</a>
                     <button type="button" onClick={() => setPopup(null)} style={{ padding: 8, background: "#e6e6e6", borderRadius: 8 }}>Cancel</button>
                   </div>
                 </form>
