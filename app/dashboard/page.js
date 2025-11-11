@@ -646,7 +646,7 @@ export default function DashboardPage() {
               <div style={{ fontWeight: 700 }}>Support</div>
               <div style={{ marginTop: 8, fontSize: 13 }}>Need help? Chat on WhatsApp or open Support.</div>
               <div style={{ marginTop: 10 }}>
-                <a href="https://wa.me/2348161662371" target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: 8, borderRadius: 8, background: "#10b981" }}>WhatsApp Support</a>
+                <a href="https://wa.me/234" target="_blank" rel="noreferrer" style={{ display: "inline-block", padding: 8, borderRadius: 8, background: "#10b981" }}>WhatsApp Support</a>
               </div>
             </div>
           </aside>
