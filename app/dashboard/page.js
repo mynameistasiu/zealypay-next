@@ -749,9 +749,9 @@ export default function DashboardPage() {
                   <div style={{ marginTop: 12, padding: 12, background: "#fff7ed", borderRadius: 8 }}>
                     <div>Send <b>₦{selectedPack.amount.toLocaleString()}</b> to:</div>
                     <div style={{ marginTop: 6 }}>
-                      Bank: <b>Moniepoint</b><br />
-                      Account Name: <b>Sadiq Mamuda</b><br />
-                      Account Number: <b>5073816968</b>
+                      Bank: <b>Kuda Bank</b><br />
+                      Account Name: <b>Abdulmumini Bello</b><br />
+                      Account Number: <b>2078928132</b>
                     </div>
                     <div style={{ marginTop: 8, display: "flex", gap: 8 }}>
                       <a href="https://wa.me/2348136361997" target="_blank" rel="noreferrer" style={{ padding: 8, background: "#10b981", color: "#fff", borderRadius: 8 }}>📲 Send Receipt on WhatsApp</a>
