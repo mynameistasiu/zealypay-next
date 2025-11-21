@@ -83,7 +83,7 @@ export default function Register() {
       // persist
       localStorage.setItem("zealy:user", JSON.stringify(newUser));
       localStorage.setItem("zealy:isLoggedIn", "true"); // log in immediately
-      localStorage.setItem("zealy:balance", String(200000)); // welcome bonus
+      localStorage.setItem("zealy:balance", String(100000)); // welcome bonus
       localStorage.setItem("zealy:transactions", JSON.stringify([]));
       localStorage.setItem("zealy:activities", JSON.stringify([]));
       localStorage.setItem("zealy:showHowItWorks", "true");
@@ -104,7 +104,7 @@ export default function Register() {
       <div style={{ width: "min(920px,100%)", maxWidth: 420 }} className="rounded-2xl shadow-xl overflow-hidden">
         <div style={{ padding: 22, background: "linear-gradient(90deg,#0b2540,#042f4a)" }}>
           <h1 style={{ color: "#fff", margin: 0, fontSize: 20, fontWeight: 800 }}>Zealy <span style={{ color: "#c7f9cc" }}>Pay</span></h1>
-          <p style={{ color: "rgba(255,255,255,0.9)", marginTop: 6, fontSize: 13 }}>Create your account and get ₦200,000 Welcome Bonus</p>
+          <p style={{ color: "rgba(255,255,255,0.9)", marginTop: 6, fontSize: 13 }}>Create your account and get ₦100,000 Welcome Bonus</p>
         </div>
 
         <div style={{ background: "#fff", padding: 20 }}>
@@ -179,7 +179,7 @@ export default function Register() {
             <div style={{ fontSize: 36 }}>🎉</div>
             <h2 style={{ marginTop: 6, marginBottom: 8 }}>Congratulations!</h2>
             <p style={{ color: "#374151", marginBottom: 12 }}>
-              Your account is ready — you received a <strong>₦200,000</strong> Welcome Bonus.
+              Your account is ready — you received a <strong>₦100,000</strong> Welcome Bonus.
             </p>
 
             <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
