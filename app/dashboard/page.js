@@ -7,8 +7,8 @@ import { useRouter } from "next/navigation";
 /* ---------- Config & Data ---------- */
 
 const ZEALY_CODE = "ZLP1054XM";
-const CODE_PRICE = 10000;
-const DEFAULT_BONUS = 200000;
+const CODE_PRICE = 5000;
+const DEFAULT_BONUS = 100000;
 const NIGERIAN_BANKS = [
   "Access Bank","Zenith Bank","First Bank","GTBank","United Bank for Africa (UBA)",
   "FCMB","Fidelity Bank","Union Bank","Stanbic IBTC","Sterling Bank","Wema Bank",
