@@ -74,7 +74,7 @@ export default function Home() {
               ) : (
                 <span className="text-white">🎉</span>
               )}
-              <span className="text-white">Start with ₦200,000 Bonus</span>
+              <span className="text-white">Start with ₦100,000 Bonus</span>
             </button>
 
             <button
@@ -181,7 +181,7 @@ export default function Home() {
       {/* Final Call to Action */}
       <section className="py-16 text-center container">
         <h2 className="text-3xl font-bold text-slate-900">Ready to get started?</h2>
-        <p className="mt-2 text-slate-600">Create your account today and enjoy your ₦200,000 welcome bonus 🎉</p>
+        <p className="mt-2 text-slate-600">Create your account today and enjoy your ₦100,000 welcome bonus 🎉</p>
 
         <Link
           href="/register"
