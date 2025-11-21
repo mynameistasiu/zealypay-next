@@ -131,7 +131,7 @@ export default function Login() {
           <div style={{ marginTop: 22, display: "grid", gap: 10 }}>
             <div style={{ background: "rgba(255,255,255,0.04)", padding: 12, borderRadius: 10 }}>
               <div style={{ fontWeight: 700 }}>Welcome Bonus</div>
-              <div style={{ color: "rgba(255,255,255,0.8)" }}>Register and get ₦200,000 added to your wallet.</div>
+              <div style={{ color: "rgba(255,255,255,0.8)" }}>Register and get ₦100,000 added to your wallet.</div>
             </div>
 
             <div style={{ background: "rgba(255,255,255,0.03)", padding: 12, borderRadius: 10 }}>
