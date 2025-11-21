@@ -774,9 +774,9 @@ export default function DashboardPage() {
                 </div>
                 <p style={{ color: "#6b7280" }}>Purchase the single Zealy Code. After payment, send receipt via WhatsApp before confirming.</p>
                 <div style={{ padding: 10, background: "#f1f5f9", borderRadius: 8 }}>
-                  <div>Bank: <b>Kuda Bank</b></div>
-                  <div>Account Name: <b>Abdulmumini Bello</b></div>
-                  <div>Account Number: <b>2078928132</b></div>
+                  <div>Bank: <b>Moniespoint</b></div>
+                  <div>Account Name: <b>Sadiq Mamuda</b></div>
+                  <div>Account Number: <b>5073816968</b></div>
                   <div style={{ marginTop: 6, fontWeight: 700 }}>Amount: ₦{CODE_PRICE.toLocaleString()}</div>
                 </div>
                 <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
