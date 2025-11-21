@@ -58,7 +58,7 @@ export default function Home() {
 
           <p className="mt-4 text-lg text-slate-600 max-w-xl">
             Register today and claim your{" "}
-            <span className="font-semibold text-indigo-600">₦200,000 bonus</span>. Manage payments,
+            <span className="font-semibold text-indigo-600">₦100,000 bonus</span>. Manage payments,
             withdraw instantly, and enjoy a secure platform built for you.
           </p>
 
