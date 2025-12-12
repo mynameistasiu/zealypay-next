@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
  * Register page
  * - colorful (matches dashboard palette)
  * - email validation
- * - strong password requirements + strength meter
+ * - simple password requirement (min 6 chars)
+ * - strength meter still works but simplified
  * - loading animations for submit
  * - success popup that continues to DASHBOARD (not login)
  * - stores user locally: zealy:user, zealy:isLoggedIn, zealy:balance, zealy:transactions
@@ -28,62 +29,54 @@ export default function Register() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [confirmVisible, setConfirmVisible] = useState(false);
 
-  // Validate email with simple regex
+  // Validate email
   function isValidEmail(e) {
     return /^\S+@\S+\.\S+$/.test(e);
   }
 
-  // Strong password: min 8 chars, at least one uppercase, lowercase, digit
+  // SIMPLE PASSWORD CHECK — ONLY MINIMUM 6 CHARACTERS
   function passwordStrength(pw) {
-    const min = pw.length >= 8;
-    const upper = /[A-Z]/.test(pw);
-    const lower = /[a-z]/.test(pw);
-    const num = /[0-9]/.test(pw);
-    const special = /[!@#$%^&*(),.?":{}|<>]/.test(pw);
-    const score = [min, upper, lower, num, special].filter(Boolean).length;
-    return { min, upper, lower, num, special, score };
+    const min = pw.length >= 6;
+    const score = min ? 3 : 1;
+    return { min, upper: true, lower: true, num: true, special: true, score };
   }
 
   const strength = passwordStrength(password);
   const strengthLabel =
-    strength.score <= 2 ? "Weak" : strength.score === 3 ? "Fair" : strength.score === 4 ? "Good" : "Strong";
+    strength.score <= 1 ? "Weak" : strength.score === 2 ? "Fair" : "Good";
 
   // Submit handler
   const submit = (e) => {
     e.preventDefault();
     setError("");
 
-    // basic validations
     if (!fullName.trim()) { setError("Please enter your full name."); return; }
     if (!phone.trim()) { setError("Please enter your phone number."); return; }
     if (!email.trim() || !isValidEmail(email)) { setError("Please enter a valid email address."); return; }
     if (password !== confirmPassword) { setError("Passwords do not match."); return; }
 
-    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
-    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
-      setError("Password must include uppercase, lowercase and a number.");
+    // NEW RULE: PASSWORD ONLY NEEDS 6 CHARACTERS
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
     setLoading(true);
 
-    // small simulated delay for nice UX (loading animation)
     setTimeout(() => {
-      // store user (demo): do NOT store sensitive info in real projects like this
       const newUser = {
         id: `user-${Date.now()}`,
         fullName: fullName.trim(),
         phone: phone.trim(),
         email: email.trim().toLowerCase(),
-        password, // for a demo only — do not store plaintext in production
+        password,
         created: new Date().toISOString(),
         settings: { notifications: true }
       };
 
-      // persist
       localStorage.setItem("zealy:user", JSON.stringify(newUser));
-      localStorage.setItem("zealy:isLoggedIn", "true"); // log in immediately
-      localStorage.setItem("zealy:balance", String(100000)); // welcome bonus
+      localStorage.setItem("zealy:isLoggedIn", "true");
+      localStorage.setItem("zealy:balance", String(100000));
       localStorage.setItem("zealy:transactions", JSON.stringify([]));
       localStorage.setItem("zealy:activities", JSON.stringify([]));
       localStorage.setItem("zealy:showHowItWorks", "true");
@@ -94,7 +87,6 @@ export default function Register() {
   };
 
   const handleContinue = () => {
-    // user is already logged in in localStorage; go to dashboard
     setShowPopup(false);
     router.push("/dashboard");
   };
@@ -127,24 +119,26 @@ export default function Register() {
             <div>
               <label style={{ display: "block", fontSize: 13, fontWeight: 700 }}>Password</label>
               <div style={{ display: "flex", gap: 8 }}>
-                <input type={passwordVisible ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Strong password" className="input" />
+                <input type={passwordVisible ? "text" : "password"} value={password} onChange={(e)=>setPassword(e.target.value)} placeholder="Enter password" className="input" />
                 <button type="button" onClick={() => setPasswordVisible(s=>!s)} style={{ padding: "8px 10px", borderRadius: 8, background: "#eef2ff", border: "none" }}>
                   {passwordVisible ? "Hide" : "Show"}
                 </button>
               </div>
+
               <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
                 <div style={{ height: 8, flex: 1, background: "#f1f5f9", borderRadius: 6, overflow: "hidden" }}>
                   <div style={{
-                    width: `${(strength.score / 5) * 100}%`,
+                    width: `${(strength.score / 3) * 100}%`,
                     height: "100%",
-                    background: strength.score <= 2 ? "#ef4444" : strength.score === 3 ? "#f59e0b" : strength.score === 4 ? "#06b6d4" : "#10b981",
+                    background: strength.score === 1 ? "#ef4444" : strength.score === 2 ? "#f59e0b" : "#06b6d4",
                     transition: "width .3s"
                   }} />
                 </div>
                 <div style={{ fontSize: 12, color: "#475569", minWidth: 56, textAlign: "right" }}>{strengthLabel}</div>
               </div>
+
               <div style={{ fontSize: 12, color: "#6b7280", marginTop: 6 }}>
-                Password must be at least 8 characters and include uppercase, lowercase and a number.
+                Password must be at least 6 characters.
               </div>
             </div>
 
@@ -172,7 +166,6 @@ export default function Register() {
         </div>
       </div>
 
-      {/* Success popup */}
       {showPopup && (
         <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(2,6,23,0.6)" }}>
           <div style={{ width: "min(420px,95%)", background: "#fff", borderRadius: 14, padding: 20, textAlign: "center", boxShadow: "0 8px 40px rgba(2,6,23,0.3)" }}>
@@ -194,7 +187,7 @@ export default function Register() {
         </div>
       )}
 
-      {/* small styles */}
+      {/* Styles */}
       <style jsx>{`
         .input {
           width: 100%;
@@ -229,16 +222,10 @@ export default function Register() {
           border: 2px solid rgba(255,255,255,0.25);
           border-top-color: rgba(255,255,255,0.95);
           animation: spin 1s linear infinite;
-          display: inline-block;
         }
 
         @keyframes spin {
           to { transform: rotate(360deg); }
-        }
-
-        /* responsive */
-        @media (max-width: 640px) {
-          .submitBtn { font-size: 14px; padding: 10px 12px; }
         }
       `}</style>
     </div>
